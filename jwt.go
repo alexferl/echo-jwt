@@ -46,17 +46,24 @@ func JWT(key interface{}) echo.MiddlewareFunc {
 }
 
 func JWTWithConfig(config Config) echo.MiddlewareFunc {
+	if config.Skipper == nil {
+		config.Skipper = DefaultConfig.Skipper
+	}
+
+	if config.DecodeTokenFunc == nil {
+		config.DecodeTokenFunc = DefaultConfig.DecodeTokenFunc
+	}
+
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}
 
-			if config.DecodeTokenFunc == nil {
-				panic("decode token function must be set")
-			}
+			path := c.Path()
+			method := c.Request().Method
 
-			if check(c, config.ExemptRoutes) {
+			if check(path, method, config.ExemptRoutes) {
 				return next(c)
 			}
 
@@ -84,6 +91,10 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 
 			token, err := config.DecodeTokenFunc(encodedToken, config.Options)
 			if err != nil {
+				if check(path, method, config.OptionalRoutes) {
+					return next(c)
+				}
+				c.Logger().Error(err)
 				return err
 			}
 
@@ -122,11 +133,11 @@ func decodeToken(encodedToken string, options []jwt.ParseOption) (jwt.Token, err
 	return token, nil
 }
 
-func check(c echo.Context, m map[string][]string) bool {
+func check(path string, method string, m map[string][]string) bool {
 	for k, v := range m {
-		if k == c.Request().URL.Path {
+		if k == path {
 			for _, i := range v {
-				if "*" == i || c.Request().Method == i {
+				if "*" == i || method == i {
 					return true
 				}
 			}

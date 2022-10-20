@@ -1,4 +1,4 @@
-.PHONY: dev test cover fmt pre-commit
+.PHONY: dev test cover tidy fmt pre-commit
 
 .DEFAULT: help
 help:

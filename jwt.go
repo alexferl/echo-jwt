@@ -28,6 +28,7 @@ type Config struct {
 }
 
 var DefaultConfig = Config{
+	Skipper:         middleware.DefaultSkipper,
 	ExemptRoutes:    map[string][]string{},
 	ExemptMethods:   []string{http.MethodOptions},
 	OptionalRoutes:  map[string][]string{},

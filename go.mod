@@ -1,4 +1,4 @@
-module github.com/alexferl/echo-casbin
+module github.com/alexferl/echo-jwt
 
 go 1.19
 

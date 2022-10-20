@@ -35,7 +35,7 @@ var DefaultConfig = Config{
 	DecodeTokenFunc: decodeToken,
 	Options:         []jwt.ParseOption{},
 	TokenContextKey: "token",
-	CookieKey:       "token",
+	CookieKey:       "access_token",
 	AuthHeader:      "Authorization",
 }
 
@@ -52,6 +52,18 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 
 	if config.DecodeTokenFunc == nil {
 		config.DecodeTokenFunc = DefaultConfig.DecodeTokenFunc
+	}
+
+	if config.TokenContextKey == "" {
+		config.TokenContextKey = DefaultConfig.TokenContextKey
+	}
+
+	if config.CookieKey == "" {
+		config.CookieKey = DefaultConfig.CookieKey
+	}
+
+	if config.AuthHeader == "" {
+		config.AuthHeader = DefaultConfig.AuthHeader
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -74,12 +86,12 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 			}
 
 			var encodedToken string
-			cookie, err := c.Request().Cookie("access_token")
+			cookie, err := c.Request().Cookie(config.CookieKey)
 			if err == nil {
 				encodedToken = cookie.String()
 			}
 
-			header := c.Request().Header.Get("Authorization")
+			header := c.Request().Header.Get(config.AuthHeader)
 			if header != "" {
 				split := strings.Split(header, " ")
 				if len(split) < 2 {

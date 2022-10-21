@@ -8,7 +8,7 @@ help:
 	@echo "	run go test"
 	@echo "make cover"
 	@echo "	run go test with -cover"
-	@echo "make cover"
+	@echo "make cover-html"
 	@echo "	run go test with -cover and show HTML"
 	@echo "make tidy"
 	@echo "	run go mod tidy"

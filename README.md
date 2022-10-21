@@ -1,9 +1,17 @@
 # echo-jwt [![Go Report Card](https://goreportcard.com/badge/github.com/alexferl/echo-jwt)](https://goreportcard.com/report/github.com/alexferl/echo-jwt) [![codecov](https://codecov.io/gh/alexferl/echo-jwt/branch/master/graph/badge.svg)](https://codecov.io/gh/alexferl/echo-jwt)
 
-A [JWT](https://jwt.io/) middleware for the [Echo](https://github.com/labstack/echo) framework using [lestrrat-go/jwx](https://github.com/lestrrat-go/jwx).
+A [JWT](https://jwt.io/) middleware for the [Echo](https://github.com/labstack/echo) framework using
+[lestrrat-go/jwx](https://github.com/lestrrat-go/jwx).
 
 ## Motivation
-You might wonder, why not use the JWT middleware that ships with Echo? The reason is that is uses the [golang-jwt/jwt](https://github.com/golang-jwt/jwt) library which, although a good library, doesn't implement every JWT features while [lestrrat-go/jwx](https://github.com/lestrrat-go/jwx) is the [most complete](https://jwt.io/libraries?language=Go) implementation as of this writing. I think echo-jwt also has better defaults, like `RS256` as the default signing method and is also more flexbile in what parsing options you can pass to the token verification function through the `Options` config. I think other features like `ExemptRoutes`, `ExemptMethods` and `OptionalRoutes` are useful features that most developers would want to use without having to implement them themselves.
+You might wonder why not use the JWT middleware that ships with Echo?
+The reason is that it uses the [golang-jwt/jwt](https://github.com/golang-jwt/jwt) library which,
+although a good library, doesn't implement every JWT features while [lestrrat-go/jwx](https://github.com/lestrrat-go/jwx)
+is the [most complete](https://jwt.io/libraries?language=Go) implementation as of this writing.
+I think echo-jwt also has better defaults, like `RS256` as the default signing method and is also more flexible in what
+parsing options you can pass to the token verification function through the `Options` config.
+I think other features like `ExemptRoutes`, `ExemptMethods` and `OptionalRoutes` are useful features that most
+developers would want to use without having to implement them themselves.
 
 ## Installing
 ```shell

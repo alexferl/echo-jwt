@@ -61,6 +61,10 @@ type Config struct {
 	// read the token from.
 	// Optional. Defaults to "Authorization".
 	AuthHeader string
+
+	// AuthScheme defines the authorization scheme in the AuthHeader.
+	// Optional. Defaults to "Bearer".
+	AuthScheme string
 }
 
 var DefaultConfig = Config{
@@ -73,6 +77,7 @@ var DefaultConfig = Config{
 	ContextKey:     "token",
 	CookieKey:      "access_token",
 	AuthHeader:     "Authorization",
+	AuthScheme:     "Bearer",
 }
 
 func JWT(key interface{}) echo.MiddlewareFunc {
@@ -114,6 +119,10 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 		config.AuthHeader = DefaultConfig.AuthHeader
 	}
 
+	if config.AuthScheme == "" {
+		config.AuthScheme = DefaultConfig.AuthScheme
+	}
+
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if config.Skipper(c) {
@@ -143,10 +152,16 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 				header := c.Request().Header.Get(config.AuthHeader)
 				if header != "" {
 					split := strings.Split(header, " ")
+					if strings.ToLower(split[0]) != strings.ToLower(config.AuthScheme) {
+						text := "Authorization scheme not supported"
+						return echo.NewHTTPError(http.StatusUnauthorized, text)
+					}
+
 					if len(split) < 2 {
 						text := "Authorization header malformed"
 						return echo.NewHTTPError(http.StatusUnauthorized, text)
 					}
+
 					encodedToken = split[1]
 				}
 			}

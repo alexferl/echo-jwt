@@ -20,78 +20,104 @@ import (
 
 const privateKeyPath = "fixtures/private-key.pem"
 
-func TestJWT_Defaults_AuthHeader(t *testing.T) {
-	e := echo.New()
-
-	e.GET("/", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, "ok")
-	})
-
-	key, err := loadPrivateKey(privateKeyPath)
-	assert.NoError(t, err)
-
-	e.Use(JWT(key))
-
+func TestJWT_Auth_Header(t *testing.T) {
 	token, err := generateValidToken()
 	assert.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", token))
-	resp := httptest.NewRecorder()
+	testCases := []struct {
+		name       string
+		header     string
+		statusCode int
+	}{
+		{"valid auth scheme valid token", fmt.Sprintf("Bearer %s", token), http.StatusOK},
+		{"valid auth scheme valid token case insensitive", fmt.Sprintf("bEaReR %s", token), http.StatusOK},
+		{"valid auth scheme invalid token", "Bearer invalid", http.StatusUnauthorized},
+		{"invalid auth scheme valid token", fmt.Sprintf("NotBearer %s", token), http.StatusUnauthorized},
+		{"invalid auth scheme invalid token", "NotBearer invalid", http.StatusUnauthorized},
+		{"invalid header format", "Bearer", http.StatusUnauthorized},
+	}
 
-	e.ServeHTTP(resp, req)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
 
-	assert.Equal(t, http.StatusOK, resp.Code)
+			e.GET("/", func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			key, err := loadPrivateKey(privateKeyPath)
+			assert.NoError(t, err)
+
+			e.Use(JWT(key))
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set(echo.HeaderAuthorization, tc.header)
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, tc.statusCode, resp.Code)
+		})
+	}
 }
 
-func TestJWT_Defaults_AuthHeader_Malformed(t *testing.T) {
-	e := echo.New()
-
-	e.GET("/", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, "ok")
-	})
-
-	e.Use(JWT("key"))
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set(echo.HeaderAuthorization, "malformed")
-	resp := httptest.NewRecorder()
-
-	e.ServeHTTP(resp, req)
-
-	assert.Equal(t, http.StatusUnauthorized, resp.Code)
-}
-
-func TestJWT_Defaults_Cookie(t *testing.T) {
-	e := echo.New()
-
-	e.GET("/", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, "ok")
-	})
-
-	key, err := loadPrivateKey(privateKeyPath)
-	assert.NoError(t, err)
-
-	e.Use(JWT(key))
-
+func TestJWT_Auth_Cookie(t *testing.T) {
 	token, err := generateValidToken()
 	assert.NoError(t, err)
 
-	cookie := &http.Cookie{
+	validCookie := &http.Cookie{
 		Name:     "access_token",
 		Value:    string(token),
-		Expires:  time.Now().Add(time.Minute * 10),
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.AddCookie(cookie)
-	resp := httptest.NewRecorder()
+	wrongNameCookie := &http.Cookie{
+		Name:     "not_access_token",
+		Value:    string(token),
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+	}
 
-	e.ServeHTTP(resp, req)
+	invalidTokenCookie := &http.Cookie{
+		Name:     "access_token",
+		Value:    "invalid",
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+	}
 
-	assert.Equal(t, http.StatusOK, resp.Code)
+	testCases := []struct {
+		name       string
+		cookie     *http.Cookie
+		statusCode int
+	}{
+		{"valid cookie", validCookie, http.StatusOK},
+		{"wrong cookie name", wrongNameCookie, http.StatusUnauthorized},
+		{"invalid token cookie", invalidTokenCookie, http.StatusUnauthorized},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.GET("/", func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			key, err := loadPrivateKey(privateKeyPath)
+			assert.NoError(t, err)
+
+			e.Use(JWT(key))
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.AddCookie(tc.cookie)
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, tc.statusCode, resp.Code)
+		})
+	}
 }
 
 func TestJWT_ReturnStatus(t *testing.T) {

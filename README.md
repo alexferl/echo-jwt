@@ -182,5 +182,9 @@ type Config struct {
     // read the token from.
     // Optional. Defaults to "Authorization".
     AuthHeader string
+
+    // AuthScheme defines the authorization scheme in the AuthHeader.
+    // Optional. Defaults to "Bearer".
+    AuthScheme string
 }
 ```

@@ -22,7 +22,7 @@ type Config struct {
 	Key interface{}
 
 	// ExemptRoutes defines routes and methods that don't require tokens.
-	// Optional.
+	// Optional. Defaults to /login [POST].
 	ExemptRoutes map[string][]string
 
 	// ExemptMethods defines methods that don't require tokens.
@@ -65,7 +65,7 @@ type Config struct {
 
 var DefaultConfig = Config{
 	Skipper:        middleware.DefaultSkipper,
-	ExemptRoutes:   map[string][]string{},
+	ExemptRoutes:   map[string][]string{"/login": {http.MethodPost}},
 	ExemptMethods:  []string{http.MethodOptions},
 	OptionalRoutes: map[string][]string{},
 	ParseTokenFunc: parseToken,
@@ -77,6 +77,8 @@ var DefaultConfig = Config{
 
 func JWT(key interface{}) echo.MiddlewareFunc {
 	c := DefaultConfig
+	c.ExemptRoutes = DefaultConfig.ExemptRoutes
+	c.ExemptMethods = DefaultConfig.ExemptMethods
 	c.Key = key
 	c.Options = append(c.Options, jwt.WithKey(jwa.RS256, key))
 	return JWTWithConfig(c)

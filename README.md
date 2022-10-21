@@ -6,13 +6,14 @@ go get github.com/alexferl/echo-jwt
 ```
 
 ## Using
-Before using the middleware you need to generate an RSA private key (RSASSA-PKCS-v1.5 using SHA-256)
-or use an existing one to verify tokens. The tokens need to have been signed by the same key!
+Before using the middleware you need to generate an RSA private key (RSASSA-PKCS-v1.5 using SHA-256) to
+sign and verify the tokens.
 
 ```shell
 openssl genrsa -out private-key.pem 4096
 ```
 
+Code example:
 ```go
 package main
 
@@ -24,25 +25,55 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/alexferl/echo-jwt"
 	"github.com/labstack/echo/v4"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	jwx "github.com/lestrrat-go/jwx/v2/jwt"
 )
+
+var privateKey *rsa.PrivateKey
 
 func main() {
 	e := echo.New()
+
 	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello, World!")
+		t := c.Get("token").(jwx.Token)
+		return c.JSON(http.StatusOK, t)
+	})
+
+	e.POST("/login", func(c echo.Context) error {
+		builder := jwx.NewBuilder().
+			Subject("1").
+			Issuer("http://localhost:1323").
+			IssuedAt(time.Now()).
+			NotBefore(time.Now()).
+			Expiration(time.Now().Add(time.Minute*10)).
+			Claim("name", c.QueryParam("name"))
+
+		token, err := builder.Build()
+		if err != nil {
+			panic(fmt.Sprintf("failed building token: %v\n", err))
+		}
+
+		signed, err := jwx.Sign(token, jwx.WithKey(jwa.RS256, privateKey))
+		if err != nil {
+			panic(fmt.Sprintf("failed signing token: %v\n", err))
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{"access_token": string(signed)})
 	})
 
 	key, err := loadPrivateKey("/path/to/private-key.pem")
 	if err != nil {
-		panic(fmt.Sprintf("error loading private key: %v\n", err))
+		panic(fmt.Sprintf("failed loading private key: %v\n", err))
 	}
+	privateKey = key
 
 	e.Use(jwt.JWT(key))
 
-	e.Logger.Fatal(e.Start(":1323"))
+	e.Logger.Fatal(e.Start("localhost:1323"))
 }
 
 func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
@@ -70,14 +101,28 @@ func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 }
 ```
 
-By default, *all* routes will require a token in the `Authorization` header or
-as a cookie with the key `access_token`.
+Getting a token:
+```shell
+curl -X POST http://localhost:1323/login\?name\=alex
+{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOj..."}
+```
 
-You may define some exempted routes and methods that don't require a token:
+Using a token:
+```shell
+curl http://localhost:1323/ -H 'Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOj...'
+{"exp":1666320946,"iat":1666320346,"iss":"http://localhost:1323","name":"name","nbf":1666320346,"sub":"1"}
+```
+
+### Exempt routes
+By default, *all* routes except `POST /login` will require a token in
+the `Authorization` header or as a cookie with the key `access_token`.
+
+You may define some additional exempted routes and methods that don't require a token:
 ```go
 e.Use(jwt.JWTWithConfig(jwt.Config{
     ExemptRoutes: map[string][]string{
         "/":          {http.MethodGet},
+        "/login":     {http.MethodPost},
         "/users":     {http.MethodPost, http.MethodGet},
         "/users/:id": {http.MethodGet},
     },
@@ -96,7 +141,7 @@ type Config struct {
     Key interface{}
 
     // ExemptRoutes defines routes and methods that don't require tokens.
-    // Optional.
+    // Optional. Defaults to /login [POST].
     ExemptRoutes map[string][]string
 
     // ExemptMethods defines methods that don't require tokens.

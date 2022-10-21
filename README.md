@@ -5,7 +5,6 @@
 go get github.com/alexferl/echo-jwt
 ```
 
-
 ## Using
 Before using the middleware you need to generate an RSA private key (RSASSA-PKCS-v1.5 using SHA-256)
 or use an existing one to verify tokens. The tokens need to have been signed by the same key!

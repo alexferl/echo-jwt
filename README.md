@@ -1,4 +1,4 @@
-# echo-jwt
+# echo-jwt [![Go Report Card](https://goreportcard.com/badge/github.com/alexferl/echo-jwt)](https://goreportcard.com/report/github.com/alexferl/echo-jwt) [![codecov](https://codecov.io/gh/alexferl/echo-jwt/branch/master/graph/badge.svg)](https://codecov.io/gh/alexferl/echo-jwt)
 
 ## Installing
 ```shell

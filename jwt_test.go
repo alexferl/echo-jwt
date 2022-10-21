@@ -1,0 +1,401 @@
+package jwt
+
+import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/stretchr/testify/assert"
+)
+
+const privateKeyPath = "fixtures/private-key.pem"
+
+func TestJWT_Defaults_AuthHeader(t *testing.T) {
+	e := echo.New()
+
+	e.GET("/", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, "ok")
+	})
+
+	key, err := loadPrivateKey(privateKeyPath)
+	assert.NoError(t, err)
+
+	e.Use(JWT(key))
+
+	token, err := generateValidToken()
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", token))
+	resp := httptest.NewRecorder()
+
+	e.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+func TestJWT_Defaults_AuthHeader_Malformed(t *testing.T) {
+	e := echo.New()
+
+	e.GET("/", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, "ok")
+	})
+
+	e.Use(JWT("key"))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set(echo.HeaderAuthorization, "malformed")
+	resp := httptest.NewRecorder()
+
+	e.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusUnauthorized, resp.Code)
+}
+
+func TestJWT_Defaults_Cookie(t *testing.T) {
+	e := echo.New()
+
+	e.GET("/", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, "ok")
+	})
+
+	key, err := loadPrivateKey(privateKeyPath)
+	assert.NoError(t, err)
+
+	e.Use(JWT(key))
+
+	token, err := generateValidToken()
+	assert.NoError(t, err)
+
+	cookie := &http.Cookie{
+		Name:     "access_token",
+		Value:    string(token),
+		Expires:  time.Now().Add(time.Minute * 10),
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(cookie)
+	resp := httptest.NewRecorder()
+
+	e.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+func TestJWT_ReturnStatus(t *testing.T) {
+	token, err := generateValidToken()
+	assert.NoError(t, err)
+
+	expToken, err := generateExpiredToken()
+	assert.NoError(t, err)
+
+	nbfToken, err := generateFutureNotBefore()
+	assert.NoError(t, err)
+
+	iatToken, err := generateInvalidIssuedAt()
+	assert.NoError(t, err)
+
+	testCases := []struct {
+		name       string
+		token      []byte
+		statusCode int
+	}{
+		{"valid", token, http.StatusOK},
+		{"expired", expToken, http.StatusUnauthorized},
+		{"not before in future", nbfToken, http.StatusUnauthorized},
+		{"invalid issued at", iatToken, http.StatusUnauthorized},
+		{"invalid", []byte("invalid"), http.StatusUnauthorized},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.GET("/", func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			key, err := loadPrivateKey(privateKeyPath)
+			assert.NoError(t, err)
+
+			e.Use(JWT(key))
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", tc.token))
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, tc.statusCode, resp.Code)
+		})
+	}
+}
+
+func TestJWTWithConfig_Key_Panic(t *testing.T) {
+	e := echo.New()
+
+	assert.Panics(t, func() { e.Use(JWTWithConfig(Config{})) })
+}
+
+func TestJWTWithConfig_Skipper(t *testing.T) {
+	e := echo.New()
+
+	e.GET("/", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, "ok")
+	})
+
+	e.Use(JWTWithConfig(Config{
+		Key:     "key",
+		Skipper: func(c echo.Context) bool { return true },
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	resp := httptest.NewRecorder()
+
+	e.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+func TestJWTWithConfig_AfterParseFunc(t *testing.T) {
+	fn := func(echo.Context, jwt.Token) *echo.HTTPError { return nil }
+	errFn := func(echo.Context, jwt.Token) *echo.HTTPError {
+		return &echo.HTTPError{Code: http.StatusTeapot}
+	}
+
+	testCases := []struct {
+		name       string
+		fn         func(echo.Context, jwt.Token) *echo.HTTPError
+		statusCode int
+	}{
+		{"no error", fn, http.StatusOK},
+		{"error", errFn, http.StatusTeapot},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.GET("/", func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			key, err := loadPrivateKey(privateKeyPath)
+			assert.NoError(t, err)
+
+			e.Use(JWTWithConfig(Config{
+				Key:            key,
+				AfterParseFunc: tc.fn,
+			}))
+
+			token, err := generateValidToken()
+			assert.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", token))
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, tc.statusCode, resp.Code)
+		})
+	}
+}
+
+func TestJWTWithConfig_ExemptMethods(t *testing.T) {
+	testCases := []struct {
+		name       string
+		methods    []string
+		statusCode int
+	}{
+		{"get 200", []string{http.MethodGet}, http.StatusOK},
+		{"post 200", []string{http.MethodPost}, http.StatusOK},
+		{"put 200", []string{http.MethodPut}, http.StatusOK},
+		{"patch 200", []string{http.MethodPatch}, http.StatusOK},
+		{"delete 200", []string{http.MethodDelete}, http.StatusOK},
+		{"options 200", []string{http.MethodOptions}, http.StatusOK},
+		{"get 401", []string{http.MethodPost}, http.StatusUnauthorized},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.Any("/", func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			e.Use(JWTWithConfig(Config{
+				ExemptMethods: tc.methods,
+				Key:           "key",
+			}))
+
+			req := httptest.NewRequest(tc.methods[0], "/", nil)
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusOK, resp.Code)
+		})
+	}
+}
+
+func TestJWTWithConfig_ExemptRoutes(t *testing.T) {
+	testCases := []struct {
+		name    string
+		pattern string
+		route   string
+	}{
+		{"root", "/", "/"},
+		{"users", "/users", "/users"},
+		{"users_id", "/users/:id", "/users/1"},
+		{"users_books", "/users/:id/books", "/users/1/books"},
+		{"users_books_id", "/users/:id/books/:id", "/users/1/books/1"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.GET(tc.route, func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			e.Use(JWTWithConfig(Config{
+				ExemptRoutes: map[string][]string{
+					tc.route: {http.MethodGet},
+				},
+				Key: "key",
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, tc.route, nil)
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusOK, resp.Code)
+		})
+	}
+}
+
+func TestJWTWithConfig_OptionalRoutes(t *testing.T) {
+	testCases := []struct {
+		name       string
+		routes     map[string][]string
+		statusCode int
+	}{
+		{"success", map[string][]string{"/": {http.MethodGet}}, http.StatusOK},
+		{"fail", map[string][]string{"/": {http.MethodPost}}, http.StatusUnauthorized},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.GET("/", func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			key, err := loadPrivateKey(privateKeyPath)
+			assert.NoError(t, err)
+
+			e.Use(JWTWithConfig(Config{
+				OptionalRoutes: tc.routes,
+				Key:            key,
+			}))
+
+			token, err := generateExpiredToken()
+			assert.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", token))
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, tc.statusCode, resp.Code)
+		})
+	}
+}
+
+func generateValidToken() ([]byte, error) {
+	t := time.Now()
+	return generateToken(t, t, t.Add(time.Minute*10))
+}
+
+func generateExpiredToken() ([]byte, error) {
+	t := time.Now().Add(-time.Minute * 10)
+	return generateToken(t, t, t)
+}
+
+func generateFutureNotBefore() ([]byte, error) {
+	t := time.Now()
+	return generateToken(t, t.Add(time.Minute*10), t.Add(time.Minute*9))
+}
+
+func generateInvalidIssuedAt() ([]byte, error) {
+	t := time.Now()
+	return generateToken(t.Add(time.Minute*10), t, t)
+}
+
+func generateToken(iat time.Time, nbf time.Time, exp time.Time) ([]byte, error) {
+	key, err := loadPrivateKey(privateKeyPath)
+	if err != nil {
+		return nil, err
+	}
+
+	builder := jwt.NewBuilder().
+		Subject("123").
+		Issuer("test").
+		IssuedAt(iat).
+		NotBefore(nbf).
+		Expiration(exp)
+
+	token, err := builder.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, key))
+	if err != nil {
+		return nil, err
+	}
+
+	return signed, nil
+}
+
+func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return nil, fmt.Errorf("failed to parse PEM block: %v", err)
+	}
+
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return key, nil
+}

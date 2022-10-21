@@ -36,6 +36,10 @@ test:
 cover:
 	go test -cover -v ./...
 
+cover-html:
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out
+
 tidy:
 	go mod tidy
 

@@ -1,48 +1,85 @@
 package jwt
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/lestrrat-go/jwx/jwa"
-	"github.com/lestrrat-go/jwx/jwt"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 )
+
+var errTokenParse = errors.New("failed parsing token")
 
 type Config struct {
 	// Skipper defines a function to skip middleware.
-	Skipper        middleware.Skipper
-	ExemptRoutes   map[string][]string
-	ExemptMethods  []string
+	Skipper middleware.Skipper
+
+	// Key defines the RSA key used to verify tokens.
+	// Required.
+	Key interface{}
+
+	// ExemptRoutes defines routes and methods that don't require tokens.
+	// Optional.
+	ExemptRoutes map[string][]string
+
+	// ExemptMethods defines methods that don't require tokens.
+	// Optional. Defaults to [OPTIONS].
+	ExemptMethods []string
+
+	// OptionalRoutes defines routes and methods that
+	// can optionally require a token.
+	// Optional.
 	OptionalRoutes map[string][]string
 
-	DecodeTokenFunc func(string, []jwt.ParseOption) (jwt.Token, error)
-	AfterDecodeFunc func(echo.Context, jwt.Token) *echo.HTTPError
-	Options         []jwt.ParseOption
-	Key             interface{}
+	// ParseTokenFunc defines a function used to decode tokens.
+	// Optional.
+	ParseTokenFunc func(string, []jwt.ParseOption) (jwt.Token, error)
 
-	TokenContextKey string
-	CookieKey       string
-	AuthHeader      string
+	// AfterParseFunc defines a function that will run after
+	// the ParseTokenFunc has successfully run.
+	// Optional.
+	AfterParseFunc func(echo.Context, jwt.Token) *echo.HTTPError
+
+	// Options defines jwt.ParseOption options for parsing tokens.
+	// Optional. Defaults [jwt.WithValidate(true)].
+	Options []jwt.ParseOption
+
+	// ContextKey defines the key that will be used to store the token
+	// on the echo.Context when the token is successfully parsed.
+	// Optional. Defaults to "token".
+	ContextKey string
+
+	// CookieKey defines the key that will be used to read the token
+	// from an HTTP cookie.
+	// Optional. Defaults to "access_token".
+	CookieKey string
+
+	// AuthHeader defines the HTTP header that will be used to
+	// read the token from.
+	// Optional. Defaults to "Authorization".
+	AuthHeader string
 }
 
 var DefaultConfig = Config{
-	Skipper:         middleware.DefaultSkipper,
-	ExemptRoutes:    map[string][]string{},
-	ExemptMethods:   []string{http.MethodOptions},
-	OptionalRoutes:  map[string][]string{},
-	DecodeTokenFunc: decodeToken,
-	Options:         []jwt.ParseOption{},
-	TokenContextKey: "token",
-	CookieKey:       "access_token",
-	AuthHeader:      "Authorization",
+	Skipper:        middleware.DefaultSkipper,
+	ExemptRoutes:   map[string][]string{},
+	ExemptMethods:  []string{http.MethodOptions},
+	OptionalRoutes: map[string][]string{},
+	ParseTokenFunc: parseToken,
+	Options:        []jwt.ParseOption{jwt.WithValidate(true)},
+	ContextKey:     "token",
+	CookieKey:      "access_token",
+	AuthHeader:     "Authorization",
 }
 
 func JWT(key interface{}) echo.MiddlewareFunc {
 	c := DefaultConfig
-	c.Options = []jwt.ParseOption{jwt.WithVerify(jwa.RS256, key)}
-	return JWTWithConfig(DefaultConfig)
+	c.Key = key
+	c.Options = append(c.Options, jwt.WithKey(jwa.RS256, key))
+	return JWTWithConfig(c)
 }
 
 func JWTWithConfig(config Config) echo.MiddlewareFunc {
@@ -50,12 +87,21 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 		config.Skipper = DefaultConfig.Skipper
 	}
 
-	if config.DecodeTokenFunc == nil {
-		config.DecodeTokenFunc = DefaultConfig.DecodeTokenFunc
+	if config.ParseTokenFunc == nil {
+		config.ParseTokenFunc = DefaultConfig.ParseTokenFunc
 	}
 
-	if config.TokenContextKey == "" {
-		config.TokenContextKey = DefaultConfig.TokenContextKey
+	if config.Key == nil {
+		panic("key is required")
+	}
+
+	if len(config.Options) < 1 {
+		config.Options = DefaultConfig.Options
+		config.Options = append(config.Options, jwt.WithKey(jwa.RS256, config.Key))
+	}
+
+	if config.ContextKey == "" {
+		config.ContextKey = DefaultConfig.ContextKey
 	}
 
 	if config.CookieKey == "" {
@@ -88,32 +134,39 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 			var encodedToken string
 			cookie, err := c.Request().Cookie(config.CookieKey)
 			if err == nil {
-				encodedToken = cookie.String()
+				encodedToken = cookie.Value
 			}
 
-			header := c.Request().Header.Get(config.AuthHeader)
-			if header != "" {
-				split := strings.Split(header, " ")
-				if len(split) < 2 {
-					text := "Authorization header malformed"
-					return echo.NewHTTPError(http.StatusUnauthorized, text)
+			if encodedToken == "" {
+				header := c.Request().Header.Get(config.AuthHeader)
+				if header != "" {
+					split := strings.Split(header, " ")
+					if len(split) < 2 {
+						text := "Authorization header malformed"
+						return echo.NewHTTPError(http.StatusUnauthorized, text)
+					}
+					encodedToken = split[1]
 				}
-				encodedToken = split[1]
 			}
 
-			token, err := config.DecodeTokenFunc(encodedToken, config.Options)
+			token, err := config.ParseTokenFunc(encodedToken, config.Options)
 			if err != nil {
 				if check(path, method, config.OptionalRoutes) {
 					return next(c)
 				}
-				c.Logger().Error(err)
-				return err
+
+				if err != errTokenParse {
+					return err
+				} else {
+					c.Logger().Error(err)
+					return echo.NewHTTPError(http.StatusUnauthorized, err)
+				}
 			}
 
-			c.Set(config.TokenContextKey, token)
+			c.Set(config.ContextKey, token)
 
-			if config.AfterDecodeFunc != nil {
-				err = config.AfterDecodeFunc(c, token)
+			if config.AfterParseFunc != nil {
+				err := config.AfterParseFunc(c, token)
 				if err != nil {
 					return err
 				}
@@ -124,7 +177,7 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 	}
 }
 
-func decodeToken(encodedToken string, options []jwt.ParseOption) (jwt.Token, error) {
+func parseToken(encodedToken string, options []jwt.ParseOption) (jwt.Token, error) {
 	token, err := jwt.Parse([]byte(encodedToken), options...)
 	if err != nil {
 		if err == jwt.ErrTokenExpired() {
@@ -139,7 +192,7 @@ func decodeToken(encodedToken string, options []jwt.ParseOption) (jwt.Token, err
 			return nil, echo.NewHTTPError(http.StatusUnauthorized, "token not yet valid")
 		}
 
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "token error")
+		return nil, errTokenParse
 	}
 
 	return token, nil

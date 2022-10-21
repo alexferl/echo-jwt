@@ -1,10 +1,9 @@
-# echo-jwt
+# echo-jwt [![Go Report Card](https://goreportcard.com/badge/github.com/alexferl/echo-jwt)](https://goreportcard.com/report/github.com/alexferl/echo-jwt) [![codecov](https://codecov.io/gh/alexferl/echo-jwt/branch/master/graph/badge.svg)](https://codecov.io/gh/alexferl/echo-jwt)
 
 ## Installing
 ```shell
 go get github.com/alexferl/echo-jwt
 ```
-
 
 ## Using
 Before using the middleware you need to generate an RSA private key (RSASSA-PKCS-v1.5 using SHA-256)

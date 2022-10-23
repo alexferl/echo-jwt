@@ -356,12 +356,13 @@ func TestJWTWithConfig_OptionalRoutes(t *testing.T) {
 
 func TestJWT_Route_Not_Found(t *testing.T) {
 	testCases := []struct {
-		name     string
-		endpoint string
-		method   string
+		name       string
+		endpoint   string
+		method     string
+		statusCode int
 	}{
-		{"wrong path", "/wrong", http.MethodGet},
-		{"wrong method", "/", http.MethodPost},
+		{"wrong path", "/wrong", http.MethodGet, http.StatusNotFound},
+		{"wrong method", "/", http.MethodPost, http.StatusMethodNotAllowed},
 	}
 
 	for _, tc := range testCases {
@@ -382,7 +383,7 @@ func TestJWT_Route_Not_Found(t *testing.T) {
 
 			e.ServeHTTP(resp, req)
 
-			assert.Equal(t, http.StatusNotFound, resp.Code)
+			assert.Equal(t, tc.statusCode, resp.Code)
 		})
 	}
 }

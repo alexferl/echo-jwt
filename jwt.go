@@ -172,12 +172,20 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 					return next(c)
 				}
 
-				var routeExists bool
+				var routeExists, methodMatches bool
 				for _, route := range c.Echo().Routes() {
-					if path == route.Path && method == route.Method {
+					if path == route.Path {
+						if method == route.Method {
+							methodMatches = true
+						}
 						routeExists = true
 					}
 				}
+
+				if routeExists && !methodMatches {
+					return echo.NewHTTPError(http.StatusMethodNotAllowed, "Method not allowed")
+				}
+
 				if !routeExists {
 					return echo.NewHTTPError(http.StatusNotFound, "Route does not exist")
 				}

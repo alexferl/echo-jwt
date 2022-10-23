@@ -26,7 +26,7 @@ sign and verify the tokens.
 openssl genrsa -out private-key.pem 4096
 ```
 
-Code example:
+### Code example
 ```go
 package main
 

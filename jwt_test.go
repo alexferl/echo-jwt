@@ -66,24 +66,21 @@ func TestJWT_Auth_Cookie(t *testing.T) {
 	assert.NoError(t, err)
 
 	validCookie := &http.Cookie{
-		Name:     "access_token",
-		Value:    string(token),
-		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Name:  "access_token",
+		Value: string(token),
+		Path:  "/",
 	}
 
 	wrongNameCookie := &http.Cookie{
-		Name:     "not_access_token",
-		Value:    string(token),
-		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Name:  "not_access_token",
+		Value: string(token),
+		Path:  "/",
 	}
 
 	invalidTokenCookie := &http.Cookie{
-		Name:     "access_token",
-		Value:    "invalid",
-		Path:     "/",
-		SameSite: http.SameSiteLaxMode,
+		Name:  "access_token",
+		Value: "invalid",
+		Path:  "/",
 	}
 
 	testCases := []struct {
@@ -280,15 +277,16 @@ func TestJWTWithConfig_ExemptMethods(t *testing.T) {
 
 func TestJWTWithConfig_ExemptRoutes(t *testing.T) {
 	testCases := []struct {
-		name    string
-		pattern string
-		route   string
+		name       string
+		pattern    string
+		route      string
+		statusCode int
 	}{
-		{"root", "/", "/"},
-		{"users", "/users", "/users"},
-		{"users_id", "/users/:id", "/users/1"},
-		{"users_books", "/users/:id/books", "/users/1/books"},
-		{"users_books_id", "/users/:id/books/:id", "/users/1/books/1"},
+		{"root", "/", "/", http.StatusOK},
+		{"users", "/users", "/users", http.StatusOK},
+		{"users_id", "/users/:id", "/users/1", http.StatusOK},
+		{"users_books", "/users/:id/books", "/users/1/books", http.StatusOK},
+		{"users_books_id", "/users/:id/books/:id", "/users/1/books/1", http.StatusOK},
 	}
 
 	for _, tc := range testCases {
@@ -352,6 +350,39 @@ func TestJWTWithConfig_OptionalRoutes(t *testing.T) {
 			e.ServeHTTP(resp, req)
 
 			assert.Equal(t, tc.statusCode, resp.Code)
+		})
+	}
+}
+
+func TestJWT_Route_Not_Found(t *testing.T) {
+	testCases := []struct {
+		name     string
+		endpoint string
+		method   string
+	}{
+		{"wrong path", "/wrong", http.MethodGet},
+		{"wrong method", "/", http.MethodPost},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.GET("/", func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			key, err := loadPrivateKey(privateKeyPath)
+			assert.NoError(t, err)
+
+			e.Use(JWT(key))
+
+			req := httptest.NewRequest(tc.method, tc.endpoint, nil)
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusNotFound, resp.Code)
 		})
 	}
 }

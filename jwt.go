@@ -172,11 +172,20 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 					return next(c)
 				}
 
+				var routeExists bool
+				for _, route := range c.Echo().Routes() {
+					if path == route.Path && method == route.Method {
+						routeExists = true
+					}
+				}
+				if !routeExists {
+					return echo.NewHTTPError(http.StatusNotFound, "Route does not exist")
+				}
+
 				if err != errTokenParse {
 					return err
 				} else {
-					c.Logger().Error(err)
-					return echo.NewHTTPError(http.StatusUnauthorized, err)
+					return echo.NewHTTPError(http.StatusUnauthorized, "Token error")
 				}
 			}
 
@@ -198,15 +207,15 @@ func parseToken(encodedToken string, options []jwt.ParseOption) (jwt.Token, erro
 	token, err := jwt.Parse([]byte(encodedToken), options...)
 	if err != nil {
 		if err == jwt.ErrTokenExpired() {
-			return nil, echo.NewHTTPError(http.StatusUnauthorized, "token expired")
+			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Token is expired")
 		}
 
 		if err == jwt.ErrInvalidIssuedAt() {
-			return nil, echo.NewHTTPError(http.StatusUnauthorized, "token invalid issued at")
+			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Token has invalid issued at")
 		}
 
 		if err == jwt.ErrTokenNotYetValid() {
-			return nil, echo.NewHTTPError(http.StatusUnauthorized, "token not yet valid")
+			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Token is not yet valid")
 		}
 
 		return nil, errTokenParse

@@ -10,8 +10,8 @@ although a good library, doesn't implement every JWT features while [lestrrat-go
 is the [most complete](https://jwt.io/libraries?language=Go) implementation as of this writing.
 I think echo-jwt also has better defaults, like `RS256` as the default signing method and is also more flexible in what
 parsing options you can pass to the token verification function through the `Options` config.
-I think other features like `ExemptRoutes`, `ExemptMethods` and `OptionalRoutes` are useful features that most
-developers would want to use without having to implement them themselves.
+I think other features like `ExemptRoutes`, `ExemptMethods`, `OptionalRoutes` and `RefreshToken` are useful features
+that most developers would want to use without having to implement them themselves.
 
 ## Installing
 ```shell
@@ -197,5 +197,40 @@ type Config struct {
     // AuthScheme defines the authorization scheme in the AuthHeader.
     // Optional. Defaults to "Bearer".
     AuthScheme string
+
+    // UseRefreshToken controls whether refresh tokens are used or not.
+    // Optional. Defaults to false.
+    UseRefreshToken bool
+
+    // RefreshToken holds the configuration related to refresh tokens.
+    // Optional.
+    RefreshToken *RefreshToken
+}
+
+type RefreshToken struct {
+    // ContextKey defines the key that will be used to store the refresh token
+    // on the echo.Context when the token is successfully parsed.
+    // Optional. Defaults to "refresh_token".
+    ContextKey string
+
+    // CookieKey defines the key that will be used to read the refresh token
+    // from an HTTP cookie.
+    // Optional. Defaults to "refresh_token".
+    CookieKey string
+
+    // BodyMIMEType defines the expected MIME type of the request body.
+    // Returns a 400 Bad Request if the request's Content-Type header does not match.
+    // Optional. Defaults to "application/json".
+    BodyMIMEType string
+
+    // BodyKey defines the key that will be used to read the refresh token
+    // from the request's body.
+    // Returns a 422 UnprocessableEntity if the request's body key is missing.
+    // Optional. Defaults to "refresh_token".
+    BodyKey string
+
+    // Routes defines routes and methods that require a refresh token.
+    // Optional. Defaults to /auth/refresh [POST] and /auth/logout [POST].
+    Routes map[string][]string
 }
 ```

@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -190,6 +191,106 @@ func TestJWTWithConfig_Skipper(t *testing.T) {
 	e.ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+func TestJWTWithConfig_RefreshToken_Defaults(t *testing.T) {
+	e := echo.New()
+
+	e.POST("/auth/refresh", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, "ok")
+	})
+
+	key, err := loadPrivateKey(privateKeyPath)
+	assert.NoError(t, err)
+
+	e.Use(JWTWithConfig(Config{
+		Key:             key,
+		UseRefreshToken: true,
+		RefreshToken:    &RefreshToken{},
+	}))
+
+	token, err := generateValidToken()
+	assert.NoError(t, err)
+
+	b := fmt.Sprintf(`{"refresh_token": "%s"}`, token)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", bytes.NewBuffer([]byte(b)))
+	req.Header.Add("Content-Type", echo.MIMEApplicationJSON)
+	resp := httptest.NewRecorder()
+
+	e.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+func TestJWTWithConfig_RefreshToken_Malformed(t *testing.T) {
+	token, err := generateValidToken()
+	assert.NoError(t, err)
+
+	testCases := []struct {
+		name        string
+		contentType string
+		body        *bytes.Buffer
+		statusCode  int
+		msg         string
+	}{
+		{
+			"wrong content type",
+			"wrong",
+			bytes.NewBuffer([]byte(fmt.Sprintf(`{"refresh_token": "%s"}`, token))),
+			http.StatusBadRequest,
+			"Request malformed",
+		},
+		{
+			"no body",
+			echo.MIMEApplicationJSON,
+			&bytes.Buffer{},
+			http.StatusBadRequest,
+			"Request malformed",
+		},
+		{
+			"malformed json body",
+			echo.MIMEApplicationJSON,
+			bytes.NewBuffer([]byte("{]")),
+			http.StatusBadRequest,
+			"Request malformed",
+		},
+		{
+			"missing body key",
+			echo.MIMEApplicationJSON,
+			bytes.NewBuffer([]byte(fmt.Sprintf(`{"wrong": "%s"}`, token))),
+			http.StatusUnprocessableEntity,
+			"Body missing 'refresh_token' key",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.POST("/auth/refresh", func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			key, err := loadPrivateKey(privateKeyPath)
+			assert.NoError(t, err)
+
+			e.Use(JWTWithConfig(Config{
+				Key:             key,
+				UseRefreshToken: true,
+				RefreshToken:    &RefreshToken{},
+			}))
+
+			req := httptest.NewRequest(http.MethodPost, "/auth/refresh", tc.body)
+			req.Header.Add("Content-Type", tc.contentType)
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, tc.statusCode, resp.Code)
+			assert.Contains(t, resp.Body.String(), tc.msg)
+		})
+	}
 }
 
 func TestJWTWithConfig_AfterParseFunc(t *testing.T) {

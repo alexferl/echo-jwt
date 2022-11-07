@@ -133,104 +133,104 @@ the `Authorization` header or as a cookie with the key `access_token`.
 You may define some additional exempted routes and methods that don't require a token:
 ```go
 e.Use(jwt.JWTWithConfig(jwt.Config{
-    ExemptRoutes: map[string][]string{
-        "/":          {http.MethodGet},
-        "/login":     {http.MethodPost},
-        "/users":     {http.MethodPost, http.MethodGet},
-        "/users/:id": {http.MethodGet},
-    },
-    Key: key,
+	ExemptRoutes: map[string][]string{
+		"/":          {http.MethodGet},
+		"/login":     {http.MethodPost},
+		"/users":     {http.MethodPost, http.MethodGet},
+		"/users/:id": {http.MethodGet},
+	},
+	Key: key,
 }))
 ```
 
 ### Configuration
 ```go
 type Config struct {
-    // Skipper defines a function to skip middleware.
-    Skipper middleware.Skipper
+	// Skipper defines a function to skip middleware.
+	Skipper middleware.Skipper
 
-    // Key defines the RSA key used to verify tokens.
-    // Required.
-    Key interface{}
+	// Key defines the RSA key used to verify tokens.
+	// Required.
+	Key interface{}
 
-    // ExemptRoutes defines routes and methods that don't require tokens.
-    // Optional. Defaults to /login [POST].
-    ExemptRoutes map[string][]string
+	// ExemptRoutes defines routes and methods that don't require tokens.
+	// Optional. Defaults to /login [POST].
+	ExemptRoutes map[string][]string
 
-    // ExemptMethods defines methods that don't require tokens.
-    // Optional. Defaults to [OPTIONS].
-    ExemptMethods []string
+	// ExemptMethods defines methods that don't require tokens.
+	// Optional. Defaults to [OPTIONS].
+	ExemptMethods []string
 
-    // OptionalRoutes defines routes and methods that
-    // can optionally require a token.
-    // Optional.
-    OptionalRoutes map[string][]string
+	// OptionalRoutes defines routes and methods that
+	// can optionally require a token.
+	// Optional.
+	OptionalRoutes map[string][]string
 
-    // ParseTokenFunc defines a function used to decode tokens.
-    // Optional.
-    ParseTokenFunc func(string, []jwt.ParseOption) (jwt.Token, error)
+	// ParseTokenFunc defines a function used to decode tokens.
+	// Optional.
+	ParseTokenFunc func(string, []jwt.ParseOption) (jwt.Token, error)
 
-    // AfterParseFunc defines a function that will run after
-    // the ParseTokenFunc has successfully run.
-    // Optional.
-    AfterParseFunc func(echo.Context, jwt.Token) *echo.HTTPError
+	// AfterParseFunc defines a function that will run after
+	// the ParseTokenFunc has successfully run.
+	// Optional.
+	AfterParseFunc func(echo.Context, jwt.Token) *echo.HTTPError
 
-    // Options defines jwt.ParseOption options for parsing tokens.
-    // Optional. Defaults [jwt.WithValidate(true)].
-    Options []jwt.ParseOption
+	// Options defines jwt.ParseOption options for parsing tokens.
+	// Optional. Defaults [jwt.WithValidate(true)].
+	Options []jwt.ParseOption
 
-    // ContextKey defines the key that will be used to store the token
-    // on the echo.Context when the token is successfully parsed.
-    // Optional. Defaults to "token".
-    ContextKey string
+	// ContextKey defines the key that will be used to store the token
+	// on the echo.Context when the token is successfully parsed.
+	// Optional. Defaults to "token".
+	ContextKey string
 
-    // CookieKey defines the key that will be used to read the token
-    // from an HTTP cookie.
-    // Optional. Defaults to "access_token".
-    CookieKey string
+	// CookieKey defines the key that will be used to read the token
+	// from an HTTP cookie.
+	// Optional. Defaults to "access_token".
+	CookieKey string
 
-    // AuthHeader defines the HTTP header that will be used to
-    // read the token from.
-    // Optional. Defaults to "Authorization".
-    AuthHeader string
+	// AuthHeader defines the HTTP header that will be used to
+	// read the token from.
+	// Optional. Defaults to "Authorization".
+	AuthHeader string
 
-    // AuthScheme defines the authorization scheme in the AuthHeader.
-    // Optional. Defaults to "Bearer".
-    AuthScheme string
+	// AuthScheme defines the authorization scheme in the AuthHeader.
+	// Optional. Defaults to "Bearer".
+	AuthScheme string
 
-    // UseRefreshToken controls whether refresh tokens are used or not.
-    // Optional. Defaults to false.
-    UseRefreshToken bool
+	// UseRefreshToken controls whether refresh tokens are used or not.
+	// Optional. Defaults to false.
+	UseRefreshToken bool
 
-    // RefreshToken holds the configuration related to refresh tokens.
-    // Optional.
-    RefreshToken *RefreshToken
+	// RefreshToken holds the configuration related to refresh tokens.
+	// Optional.
+	RefreshToken *RefreshToken
 }
 
 type RefreshToken struct {
-    // ContextKey defines the key that will be used to store the refresh token
-    // on the echo.Context when the token is successfully parsed.
-    // Optional. Defaults to "refresh_token".
-    ContextKey string
+	// ContextKey defines the key that will be used to store the refresh token
+	// on the echo.Context when the token is successfully parsed.
+	// Optional. Defaults to "refresh_token".
+	ContextKey string
 
-    // CookieKey defines the key that will be used to read the refresh token
-    // from an HTTP cookie.
-    // Optional. Defaults to "refresh_token".
-    CookieKey string
+	// CookieKey defines the key that will be used to read the refresh token
+	// from an HTTP cookie.
+	// Optional. Defaults to "refresh_token".
+	CookieKey string
 
-    // BodyMIMEType defines the expected MIME type of the request body.
-    // Returns a 400 Bad Request if the request's Content-Type header does not match.
-    // Optional. Defaults to "application/json".
-    BodyMIMEType string
+	// BodyMIMEType defines the expected MIME type of the request body.
+	// Returns a 400 Bad Request if the request's Content-Type header does not match.
+	// Optional. Defaults to "application/json".
+	BodyMIMEType string
 
-    // BodyKey defines the key that will be used to read the refresh token
-    // from the request's body.
-    // Returns a 422 UnprocessableEntity if the request's body key is missing.
-    // Optional. Defaults to "refresh_token".
-    BodyKey string
+	// BodyKey defines the key that will be used to read the refresh token
+	// from the request's body.
+	// Returns a 422 UnprocessableEntity if the request's body key is missing.
+	// Optional. Defaults to "refresh_token".
+	BodyKey string
 
-    // Routes defines routes and methods that require a refresh token.
-    // Optional. Defaults to /auth/refresh [POST] and /auth/logout [POST].
-    Routes map[string][]string
+	// Routes defines routes and methods that require a refresh token.
+	// Optional. Defaults to /auth/refresh [POST] and /auth/logout [POST].
+	Routes map[string][]string
 }
 ```

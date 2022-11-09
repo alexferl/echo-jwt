@@ -144,12 +144,12 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 		config.Skipper = DefaultConfig.Skipper
 	}
 
-	if config.ParseTokenFunc == nil {
-		config.ParseTokenFunc = DefaultConfig.ParseTokenFunc
-	}
-
 	if config.Key == nil {
 		panic("key is required")
+	}
+
+	if config.ParseTokenFunc == nil {
+		config.ParseTokenFunc = DefaultConfig.ParseTokenFunc
 	}
 
 	if len(config.Options) < 1 {

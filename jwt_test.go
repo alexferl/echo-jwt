@@ -197,7 +197,7 @@ func TestJWTWithConfig_RefreshToken_Defaults(t *testing.T) {
 	e := echo.New()
 
 	e.POST("/auth/refresh", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, "ok")
+		return c.String(http.StatusOK, c.Get(DefaultConfig.RefreshToken.ContextKeyEncoded).(string))
 	})
 
 	key, err := loadPrivateKey(privateKeyPath)
@@ -221,6 +221,7 @@ func TestJWTWithConfig_RefreshToken_Defaults(t *testing.T) {
 	e.ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusOK, resp.Code)
+	assert.Equal(t, string(token), resp.Body.String())
 }
 
 func TestJWTWithConfig_RefreshToken_Malformed(t *testing.T) {
@@ -294,14 +295,14 @@ func TestJWTWithConfig_RefreshToken_Malformed(t *testing.T) {
 }
 
 func TestJWTWithConfig_AfterParseFunc(t *testing.T) {
-	fn := func(echo.Context, jwt.Token) *echo.HTTPError { return nil }
-	errFn := func(echo.Context, jwt.Token) *echo.HTTPError {
+	fn := func(echo.Context, jwt.Token, string) *echo.HTTPError { return nil }
+	errFn := func(echo.Context, jwt.Token, string) *echo.HTTPError {
 		return &echo.HTTPError{Code: http.StatusTeapot}
 	}
 
 	testCases := []struct {
 		name       string
-		fn         func(echo.Context, jwt.Token) *echo.HTTPError
+		fn         func(echo.Context, jwt.Token, string) *echo.HTTPError
 		statusCode int
 	}{
 		{"no error", fn, http.StatusOK},

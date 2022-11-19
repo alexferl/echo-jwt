@@ -45,7 +45,7 @@ type Config struct {
 	// AfterParseFunc defines a function that will run after
 	// the ParseTokenFunc has successfully run.
 	// Optional.
-	AfterParseFunc func(echo.Context, jwt.Token) *echo.HTTPError
+	AfterParseFunc func(echo.Context, jwt.Token, string) *echo.HTTPError
 
 	// Options defines jwt.ParseOption options for parsing tokens.
 	// Optional. Defaults [jwt.WithValidate(true)].
@@ -85,6 +85,11 @@ type RefreshToken struct {
 	// Optional. Defaults to "refresh_token".
 	ContextKey string
 
+	// ContextKeyEncoded defines the key that will be used to store the encoded
+	// refresh token on the echo.Context when the token is successfully parsed.
+	// Optional. Defaults to "refresh_token_encoded".
+	ContextKeyEncoded string
+
 	// CookieKey defines the key that will be used to read the refresh token
 	// from an HTTP cookie.
 	// Optional. Defaults to "refresh_token".
@@ -119,10 +124,11 @@ var DefaultConfig = Config{
 	AuthScheme:      "Bearer",
 	UseRefreshToken: false,
 	RefreshToken: &RefreshToken{
-		ContextKey:   "refresh_token",
-		CookieKey:    "refresh_token",
-		BodyMIMEType: echo.MIMEApplicationJSON,
-		BodyKey:      "refresh_token",
+		ContextKey:        "refresh_token",
+		ContextKeyEncoded: "refresh_token_encoded",
+		CookieKey:         "refresh_token",
+		BodyMIMEType:      echo.MIMEApplicationJSON,
+		BodyKey:           "refresh_token",
 		Routes: map[string][]string{
 			"/auth/refresh": {http.MethodPost},
 			"/auth/logout":  {http.MethodPost},
@@ -179,6 +185,10 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 
 	if config.RefreshToken.ContextKey == "" {
 		config.RefreshToken.ContextKey = DefaultConfig.RefreshToken.ContextKey
+	}
+
+	if config.RefreshToken.ContextKeyEncoded == "" {
+		config.RefreshToken.ContextKeyEncoded = DefaultConfig.RefreshToken.ContextKeyEncoded
 	}
 
 	if config.RefreshToken.CookieKey == "" {
@@ -303,10 +313,11 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 				c.Set(config.ContextKey, token)
 			} else {
 				c.Set(config.RefreshToken.ContextKey, token)
+				c.Set(config.RefreshToken.ContextKeyEncoded, encodedToken)
 			}
 
 			if config.AfterParseFunc != nil {
-				err := config.AfterParseFunc(c, token)
+				err = config.AfterParseFunc(c, token, encodedToken)
 				if err != nil {
 					return err
 				}

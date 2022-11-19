@@ -173,7 +173,7 @@ type Config struct {
 	// AfterParseFunc defines a function that will run after
 	// the ParseTokenFunc has successfully run.
 	// Optional.
-	AfterParseFunc func(echo.Context, jwt.Token) *echo.HTTPError
+	AfterParseFunc func(echo.Context, jwt.Token, string) *echo.HTTPError
 
 	// Options defines jwt.ParseOption options for parsing tokens.
 	// Optional. Defaults [jwt.WithValidate(true)].
@@ -212,6 +212,11 @@ type RefreshToken struct {
 	// on the echo.Context when the token is successfully parsed.
 	// Optional. Defaults to "refresh_token".
 	ContextKey string
+
+	// ContextKeyEncoded defines the key that will be used to store the encoded
+	// refresh token on the echo.Context when the token is successfully parsed.
+	// Optional. Defaults to "refresh_token_encoded".
+	ContextKeyEncoded string
 
 	// CookieKey defines the key that will be used to read the refresh token
 	// from an HTTP cookie.

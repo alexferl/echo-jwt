@@ -317,7 +317,7 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 			}
 
 			if config.AfterParseFunc != nil {
-				err = config.AfterParseFunc(c, token, encodedToken)
+				err := config.AfterParseFunc(c, token, encodedToken)
 				if err != nil {
 					return err
 				}

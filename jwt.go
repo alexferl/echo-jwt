@@ -17,6 +17,17 @@ import (
 
 var errTokenParse = errors.New("failed parsing token")
 
+type TokenSource int
+
+const (
+	Cookie TokenSource = iota
+	Header
+)
+
+func (s TokenSource) String() string {
+	return [...]string{"cookie", "header"}[s]
+}
+
 type Config struct {
 	// Skipper defines a function to skip middleware.
 	Skipper middleware.Skipper
@@ -45,7 +56,7 @@ type Config struct {
 	// AfterParseFunc defines a function that will run after
 	// the ParseTokenFunc has successfully run.
 	// Optional.
-	AfterParseFunc func(echo.Context, jwt.Token, string) *echo.HTTPError
+	AfterParseFunc func(echo.Context, jwt.Token, string, TokenSource) *echo.HTTPError
 
 	// Options defines jwt.ParseOption options for parsing tokens.
 	// Optional. Defaults [jwt.WithValidate(true)].
@@ -77,6 +88,10 @@ type Config struct {
 	// RefreshToken holds the configuration related to refresh tokens.
 	// Optional.
 	RefreshToken *RefreshToken
+
+	// TokenSource specifies from which source the JWT was parsed from and
+	// is passed to AfterParseFunc. Value can be Cookie or Header.
+	TokenSource TokenSource
 }
 
 type RefreshToken struct {
@@ -226,6 +241,7 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 				}
 			}
 
+			var tokenSource TokenSource
 			var encodedToken string
 			var refreshRoute bool
 
@@ -259,7 +275,9 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 				}
 			} else {
 				encodedToken = encodedTokenFromCookie(c, config.CookieKey)
+				tokenSource = Cookie
 				if encodedToken == "" {
+					tokenSource = Header
 					header := c.Request().Header.Get(config.AuthHeader)
 					if header != "" {
 						split := strings.Split(header, " ")
@@ -317,7 +335,7 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 			}
 
 			if config.AfterParseFunc != nil {
-				err := config.AfterParseFunc(c, token, encodedToken)
+				err := config.AfterParseFunc(c, token, encodedToken, tokenSource)
 				if err != nil {
 					return err
 				}

@@ -88,10 +88,6 @@ type Config struct {
 	// RefreshToken holds the configuration related to refresh tokens.
 	// Optional.
 	RefreshToken *RefreshToken
-
-	// TokenSource specifies from which source the JWT was parsed from and
-	// is passed to AfterParseFunc. Value can be Cookie or Header.
-	TokenSource TokenSource
 }
 
 type RefreshToken struct {

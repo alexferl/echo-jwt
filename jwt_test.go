@@ -295,14 +295,14 @@ func TestJWTWithConfig_RefreshToken_Malformed(t *testing.T) {
 }
 
 func TestJWTWithConfig_AfterParseFunc(t *testing.T) {
-	fn := func(echo.Context, jwt.Token, string) *echo.HTTPError { return nil }
-	errFn := func(echo.Context, jwt.Token, string) *echo.HTTPError {
+	fn := func(echo.Context, jwt.Token, string, TokenSource) *echo.HTTPError { return nil }
+	errFn := func(echo.Context, jwt.Token, string, TokenSource) *echo.HTTPError {
 		return &echo.HTTPError{Code: http.StatusTeapot}
 	}
 
 	testCases := []struct {
 		name       string
-		fn         func(echo.Context, jwt.Token, string) *echo.HTTPError
+		fn         func(echo.Context, jwt.Token, string, TokenSource) *echo.HTTPError
 		statusCode int
 	}{
 		{"no error", fn, http.StatusOK},
@@ -335,6 +335,73 @@ func TestJWTWithConfig_AfterParseFunc(t *testing.T) {
 			e.ServeHTTP(resp, req)
 
 			assert.Equal(t, tc.statusCode, resp.Code)
+		})
+	}
+}
+
+func afterParseHeader(_ echo.Context, _ jwt.Token, _ string, src TokenSource) *echo.HTTPError {
+	if src.String() == Header.String() {
+		return nil
+	}
+
+	return &echo.HTTPError{Code: http.StatusInternalServerError}
+}
+
+func afterParseCookie(_ echo.Context, _ jwt.Token, _ string, src TokenSource) *echo.HTTPError {
+	if src == Cookie {
+		return nil
+	}
+
+	return &echo.HTTPError{Code: http.StatusInternalServerError}
+}
+
+func TestJWTWithConfig_AfterParseFunc_Source(t *testing.T) {
+	testCases := []struct {
+		name   string
+		source TokenSource
+		fn     func(echo.Context, jwt.Token, string, TokenSource) *echo.HTTPError
+	}{
+		{"header source", Header, afterParseHeader},
+		{"cookie source", Cookie, afterParseCookie},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+
+			e.GET("/", func(c echo.Context) error {
+				return c.JSON(http.StatusOK, "ok")
+			})
+
+			key, err := loadPrivateKey(privateKeyPath)
+			assert.NoError(t, err)
+
+			e.Use(JWTWithConfig(Config{
+				Key:            key,
+				AfterParseFunc: tc.fn,
+			}))
+
+			token, err := generateValidToken()
+			assert.NoError(t, err)
+
+			cookie := &http.Cookie{
+				Name:  "access_token",
+				Value: string(token),
+				Path:  "/",
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			fmt.Printf("SOURCE %s\n", tc.source)
+			if tc.source == Header {
+				req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", token))
+			} else {
+				req.AddCookie(cookie)
+			}
+			resp := httptest.NewRecorder()
+
+			e.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusOK, resp.Code)
 		})
 	}
 }

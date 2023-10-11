@@ -20,12 +20,13 @@ var errTokenParse = errors.New("failed parsing token")
 type TokenSource int
 
 const (
-	Cookie TokenSource = iota
+	Unset TokenSource = iota
+	Cookie
 	Header
 )
 
 func (s TokenSource) String() string {
-	return [...]string{"cookie", "header"}[s]
+	return [...]string{"unset", "cookie", "header"}[s]
 }
 
 type Config struct {
@@ -316,7 +317,7 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 					return echo.NewHTTPError(http.StatusNotFound, "Route does not exist")
 				}
 
-				if err != errTokenParse {
+				if !errors.Is(err, errTokenParse) {
 					return err
 				} else {
 					return echo.NewHTTPError(http.StatusUnauthorized, "Token invalid")

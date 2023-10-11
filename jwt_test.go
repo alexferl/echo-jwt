@@ -391,7 +391,6 @@ func TestJWTWithConfig_AfterParseFunc_Source(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			fmt.Printf("SOURCE %s\n", tc.source)
 			if tc.source == Header {
 				req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", token))
 			} else {

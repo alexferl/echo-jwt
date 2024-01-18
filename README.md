@@ -151,7 +151,7 @@ type Config struct {
 
 	// Key defines the RSA key used to verify tokens.
 	// Required.
-	Key interface{}
+	Key any
 
 	// ExemptRoutes defines routes and methods that don't require tokens.
 	// Optional. Defaults to /login [POST].

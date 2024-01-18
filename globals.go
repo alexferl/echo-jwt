@@ -9,7 +9,7 @@ var (
 	ErrAuthorizationHeaderStatus  = http.StatusUnauthorized
 	ErrAuthorizationScheme        = "authorization scheme not supported"
 	ErrAuthorizationSchemeStatus  = http.StatusUnauthorized
-	ErrBodyMissingKey             = "body is missing refresh token key"
+	ErrBodyMissingKey             = "body missing refresh token key"
 	ErrBodyMissingKeyStatus       = http.StatusUnprocessableEntity
 	ErrMethodNotAllowed           = "method not allowed"
 	ErrMethodNotAllowedStatus     = http.StatusMethodNotAllowed
@@ -17,12 +17,12 @@ var (
 	ErrRequestMalformedStatus     = http.StatusBadRequest
 	ErrRouteNotFound              = "route not found"
 	ErrRouteNotFoundStatus        = http.StatusNotFound
-	ErrTokenExpired               = "token is expired"
+	ErrTokenExpired               = "token expired"
 	ErrTokenExpiredStatus         = http.StatusUnauthorized
-	ErrTokenInvalid               = "token is invalid"
+	ErrTokenInvalid               = "token invalid"
 	ErrTokenInvalidStatus         = http.StatusUnauthorized
-	ErrTokenInvalidIssuedAt       = "token has invalid issued at"
+	ErrTokenInvalidIssuedAt       = "token invalid issued at"
 	ErrTokenInvalidIssuedAtStatus = http.StatusUnauthorized
-	ErrTokenNotYetValid           = "token is not yet valid"
+	ErrTokenNotYetValid           = "token not yet valid"
 	ErrTokenNotYetValidStatus     = http.StatusUnauthorized
 )

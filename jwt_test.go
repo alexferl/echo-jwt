@@ -240,28 +240,28 @@ func TestJWTWithConfig_RefreshToken_Malformed(t *testing.T) {
 			"wrong",
 			bytes.NewBuffer([]byte(fmt.Sprintf(`{"refresh_token": "%s"}`, token))),
 			http.StatusBadRequest,
-			"Request malformed",
+			ErrRequestMalformed,
 		},
 		{
 			"no body",
 			echo.MIMEApplicationJSON,
 			&bytes.Buffer{},
 			http.StatusBadRequest,
-			"Request malformed",
+			ErrRequestMalformed,
 		},
 		{
 			"malformed json body",
 			echo.MIMEApplicationJSON,
 			bytes.NewBuffer([]byte("{]")),
 			http.StatusBadRequest,
-			"Request malformed",
+			ErrRequestMalformed,
 		},
 		{
 			"missing body key",
 			echo.MIMEApplicationJSON,
 			bytes.NewBuffer([]byte(fmt.Sprintf(`{"wrong": "%s"}`, token))),
 			http.StatusUnprocessableEntity,
-			"Body missing 'refresh_token' key",
+			ErrBodyMissingKey,
 		},
 	}
 

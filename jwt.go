@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -35,7 +34,7 @@ type Config struct {
 
 	// Key defines the RSA key used to verify tokens.
 	// Required.
-	Key interface{}
+	Key any
 
 	// ExemptRoutes defines routes and methods that don't require tokens.
 	// Optional. Defaults to /login [POST].
@@ -148,7 +147,7 @@ var DefaultConfig = Config{
 	},
 }
 
-func JWT(key interface{}) echo.MiddlewareFunc {
+func JWT(key any) echo.MiddlewareFunc {
 	c := DefaultConfig
 	c.ExemptRoutes = DefaultConfig.ExemptRoutes
 	c.ExemptMethods = DefaultConfig.ExemptMethods
@@ -247,7 +246,7 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 				encodedToken = encodedTokenFromCookie(c, config.RefreshToken.CookieKey)
 				if encodedToken == "" {
 					if c.Request().Header.Get("Content-Type") != config.RefreshToken.BodyMIMEType {
-						return echo.NewHTTPError(http.StatusBadRequest, "Request malformed")
+						return echo.NewHTTPError(ErrRequestMalformedStatus, ErrRequestMalformed)
 					}
 
 					// there's always a body, so we don't
@@ -257,13 +256,12 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 					var m map[string]any
 					err := json.Unmarshal(data, &m)
 					if err != nil {
-						return echo.NewHTTPError(http.StatusBadRequest, "Request malformed")
+						return echo.NewHTTPError(ErrRequestMalformedStatus, ErrRequestMalformed)
 					}
 
 					key := config.RefreshToken.BodyKey
 					if val, ok := m[key]; !ok {
-						msg := fmt.Sprintf("Body missing '%s' key", key)
-						return echo.NewHTTPError(http.StatusUnprocessableEntity, msg)
+						return echo.NewHTTPError(ErrBodyMissingKeyStatus, ErrBodyMissingKey)
 					} else {
 						encodedToken = val.(string)
 					}
@@ -279,13 +277,11 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 					if header != "" {
 						split := strings.Split(header, " ")
 						if strings.ToLower(split[0]) != strings.ToLower(config.AuthScheme) {
-							text := "Authorization scheme not supported"
-							return echo.NewHTTPError(http.StatusUnauthorized, text)
+							return echo.NewHTTPError(ErrAuthorizationSchemeStatus, ErrAuthorizationScheme)
 						}
 
 						if len(split) < 2 {
-							text := "Authorization header malformed"
-							return echo.NewHTTPError(http.StatusUnauthorized, text)
+							return echo.NewHTTPError(ErrAuthorizationHeaderStatus, ErrAuthorizationHeader)
 						}
 
 						encodedToken = split[1]
@@ -310,17 +306,17 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 				}
 
 				if routeExists && !methodMatches {
-					return echo.NewHTTPError(http.StatusMethodNotAllowed, "Method not allowed")
+					return echo.NewHTTPError(ErrMethodNotAllowedStatus, ErrMethodNotAllowed)
 				}
 
 				if !routeExists {
-					return echo.NewHTTPError(http.StatusNotFound, "Route does not exist")
+					return echo.NewHTTPError(ErrRouteNotFoundStatus, ErrRouteNotFound)
 				}
 
 				if !errors.Is(err, errTokenParse) {
 					return err
 				} else {
-					return echo.NewHTTPError(http.StatusUnauthorized, "Token invalid")
+					return echo.NewHTTPError(ErrTokenInvalidStatus, ErrTokenInvalid)
 				}
 			}
 
@@ -357,16 +353,16 @@ func encodedTokenFromCookie(c echo.Context, key string) string {
 func parseToken(encodedToken string, options []jwt.ParseOption) (jwt.Token, error) {
 	token, err := jwt.Parse([]byte(encodedToken), options...)
 	if err != nil {
-		if err == jwt.ErrTokenExpired() {
-			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Token is expired")
+		if errors.Is(err, jwt.ErrTokenExpired()) {
+			return nil, echo.NewHTTPError(ErrTokenExpiredStatus, ErrTokenExpired)
 		}
 
-		if err == jwt.ErrInvalidIssuedAt() {
-			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Token has invalid issued at")
+		if errors.Is(err, jwt.ErrInvalidIssuedAt()) {
+			return nil, echo.NewHTTPError(ErrTokenInvalidIssuedAtStatus, ErrTokenInvalidIssuedAt)
 		}
 
-		if err == jwt.ErrTokenNotYetValid() {
-			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Token is not yet valid")
+		if errors.Is(err, jwt.ErrTokenNotYetValid()) {
+			return nil, echo.NewHTTPError(ErrTokenNotYetValidStatus, ErrTokenNotYetValid)
 		}
 
 		return nil, errTokenParse

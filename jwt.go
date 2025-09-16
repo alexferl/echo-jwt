@@ -10,8 +10,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 var errTokenParse = errors.New("failed parsing token")
@@ -152,7 +152,7 @@ func JWT(key any) echo.MiddlewareFunc {
 	c.ExemptRoutes = DefaultConfig.ExemptRoutes
 	c.ExemptMethods = DefaultConfig.ExemptMethods
 	c.Key = key
-	c.Options = append(c.Options, jwt.WithKey(jwa.RS256, key))
+	c.Options = append(c.Options, jwt.WithKey(jwa.RS256(), key))
 	return JWTWithConfig(c)
 }
 
@@ -171,7 +171,7 @@ func JWTWithConfig(config Config) echo.MiddlewareFunc {
 
 	if len(config.Options) < 1 {
 		config.Options = DefaultConfig.Options
-		config.Options = append(config.Options, jwt.WithKey(jwa.RS256, config.Key))
+		config.Options = append(config.Options, jwt.WithKey(jwa.RS256(), config.Key))
 	}
 
 	if config.ContextKey == "" {
@@ -353,15 +353,15 @@ func encodedTokenFromCookie(c echo.Context, key string) string {
 func parseToken(encodedToken string, options []jwt.ParseOption) (jwt.Token, error) {
 	token, err := jwt.Parse([]byte(encodedToken), options...)
 	if err != nil {
-		if errors.Is(err, jwt.ErrTokenExpired()) {
+		if errors.Is(err, jwt.TokenExpiredError()) {
 			return nil, echo.NewHTTPError(ErrTokenExpiredStatus, ErrTokenExpired)
 		}
 
-		if errors.Is(err, jwt.ErrInvalidIssuedAt()) {
+		if errors.Is(err, jwt.InvalidIssuedAtError()) {
 			return nil, echo.NewHTTPError(ErrTokenInvalidIssuedAtStatus, ErrTokenInvalidIssuedAt)
 		}
 
-		if errors.Is(err, jwt.ErrTokenNotYetValid()) {
+		if errors.Is(err, jwt.TokenNotYetValidError()) {
 			return nil, echo.NewHTTPError(ErrTokenNotYetValidStatus, ErrTokenNotYetValid)
 		}
 

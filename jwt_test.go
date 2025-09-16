@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -594,7 +594,7 @@ func generateToken(iat time.Time, nbf time.Time, exp time.Time) ([]byte, error) 
 		return nil, err
 	}
 
-	signed, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, key))
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.RS256(), key))
 	if err != nil {
 		return nil, err
 	}
